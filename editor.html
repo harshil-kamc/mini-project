@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MVSR Map Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #1b1b1b; --panel: #fffdf6; --muted: #6b6b6b; --accent: #e63946; --yellow: #ffd60a; --line: #ddd5c0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; font: 14px "Comic Neue", system-ui, sans-serif; color: var(--ink); background: #2b2d42; }
+    #app { display: flex; height: 100%; }
+    #panel { width: 330px; min-width: 330px; height: 100%; overflow-y: auto; background: var(--panel); border-right: 3px solid var(--ink); padding: 10px 12px 40px; }
+    #stage { position: relative; flex: 1; height: 100%; }
+    #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: default; }
+    h1 { font: 28px Bangers, Impact, sans-serif; letter-spacing: 1px; margin: 2px 0 2px; color: var(--accent); }
+    h2 { font: 17px Bangers, Impact, sans-serif; letter-spacing: 1px; margin: 14px 0 6px; padding-top: 10px; border-top: 2px dashed var(--line); }
+    .muted { color: var(--muted); font-size: 12.5px; margin: 4px 0; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
+    button, .filebtn { font: bold 13px "Comic Neue", sans-serif; padding: 6px 9px; border: 2px solid var(--ink); border-radius: 8px; background: #fff; cursor: pointer; box-shadow: 2px 2px 0 #000; color: var(--ink); }
+    button:hover, .filebtn:hover { background: #fff4c2; }
+    button:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+    button.primary { background: var(--yellow); }
+    button.danger { background: #ffd6d6; }
+    button.on { background: #bde0fe; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .filebtn input { display: none; }
+    label.chk { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; font-size: 13px; cursor: pointer; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+    .field { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+    .field input, .field select { font: 14px "Comic Neue", sans-serif; padding: 4px 6px; border: 2px solid #c9c0a8; border-radius: 6px; width: 100%; color: var(--ink); background: #fff; }
+    .field input[type=color] { padding: 0; height: 30px; }
+    .field.full { grid-column: 1 / -1; }
+    #selbox { background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 8px 10px; }
+    #selbox .tag { display: inline-block; font-size: 11px; background: #eee; border-radius: 4px; padding: 1px 6px; margin-left: 4px; color: #444; }
+    #status { position: absolute; left: 12px; bottom: 12px; background: rgba(0,0,0,0.75); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 13px; pointer-events: none; }
+    #coords { position: absolute; right: 12px; bottom: 12px; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 12px; pointer-events: none; }
+    #zoombar { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+    #warnings { font-size: 12.5px; }
+    #warnings li { margin: 3px 0; color: #9a2b1f; }
+    #warnings .ok { color: #2a7a3b; }
+    .help { font-size: 12.5px; line-height: 1.45; margin: 4px 0; padding-left: 18px; }
+    kbd { background: #eee; border: 1px solid #bbb; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+    input[type=range] { width: 100%; }
+    .pics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 4px 0 6px; }
+    .pic { border: 2px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; display: flex; flex-direction: column; gap: 4px; align-items: stretch; font-size: 11.5px; }
+    .pic-name { font-weight: bold; line-height: 1.15; min-height: 26px; }
+    .pic-thumb { height: 56px; border-radius: 4px; background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0 / 12px 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #999; }
+    .pic-thumb img { max-width: 100%; max-height: 100%; }
+    .pic .filebtn, .pic button { font-size: 11.5px; padding: 3px 4px; text-align: center; }
+    .savestate { font-size: 12.5px; line-height: 1.4; border: 2px solid var(--ink); border-radius: 8px; padding: 6px 8px; margin: 6px 0; background: #eee; }
+    .savestate.ok { background: #d8f3dc; }
+    .savestate.bad { background: #ffe5b4; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1>🗺️ Map Editor</h1>
+    <p class="muted">Drag things to move them, drag the white squares to resize. Every change saves automatically.</p>
+    <div id="savestate" class="savestate">Checking saving…</div>
+    <div class="row">
+      <button class="primary" id="b-play">▶ Save &amp; Play</button>
+      <button id="b-undo" title="Ctrl+Z">↶ Undo</button>
+      <button id="b-redo" title="Ctrl+Y">↷ Redo</button>
+    </div>
+
+    <h2>Selected</h2>
+    <div id="selbox"><p class="muted">Nothing selected. Click anything on the map.</p></div>
+
+    <h2>Add</h2>
+    <div class="row">
+      <button id="add-road-h">➕ Road ↔</button>
+      <button id="add-road-v">➕ Road ↕</button>
+      <button id="add-path">➕ Paved plaza</button>
+      <button id="add-median">➕ Green divider</button>
+      <button id="add-building">➕ Building</button>
+      <button id="add-lamp">💡 Street light</button>
+      <button id="add-tree">🌳 Tree</button>
+      <button id="add-bench">🪑 Bench</button>
+      <button id="add-bin">🗑️ Trash can</button>
+      <button id="add-rock">🪨 Rock</button>
+      <label class="filebtn">🖼️ Place image<input type="file" id="image-file" accept="image/*"></label>
+    </div>
+    <p class="muted">New items appear in the middle of the screen. Added buildings are scenery: you can walk up to them, but nothing happens inside.</p>
+    <div class="row">
+      <button id="auto-lamps" title="Removes the current street lights and puts new ones every few steps along every road">💡 Re-place lights along roads</button>
+      <button id="auto-trees" title="Removes the current trees and scatters new ones on open grass">🌳 Re-scatter trees</button>
+      <button id="auto-bins" title="Removes the current trash cans and puts new ones beside the street lights">🗑️ Re-place trash cans</button>
+      <button id="clear-trees" class="danger">Remove all trees</button>
+    </div>
+
+    <h2>Show</h2>
+    <div class="row" id="layers"></div>
+    <div class="row">
+      <label class="chk">Snap to grid
+        <select id="snap"><option value="1">off</option><option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
+      </label>
+    </div>
+    <p class="muted">Hold <kbd>Alt</kbd> while dragging for free movement (no snap).</p>
+
+    <h2>Reference picture (for tracing)</h2>
+    <p class="muted">Your hand-drawn campus picture is already the base map below (its red areas were made transparent, so what you place there shows in the game). Load another picture too if you want to trace over it.</p>
+    <div class="row">
+      <label class="filebtn">🖼️ Load picture<input type="file" id="ref-file" accept="image/*"></label>
+      <button id="ref-move">✋ Move/size picture</button>
+      <button id="ref-fit">Fit to map</button>
+      <button id="ref-clear" class="danger">Remove</button>
+    </div>
+    <div class="field">See-through <input type="range" id="ref-op" min="0.05" max="1" step="0.05" value="0.5"></div>
+    <div class="grid2" style="margin-top:6px">
+      <div class="field">Picture X <input type="number" id="ref-x"></div>
+      <div class="field">Picture Y <input type="number" id="ref-y"></div>
+      <div class="field">Picture width <input type="number" id="ref-w"></div>
+      <div class="field">Turn (degrees) <input type="number" id="ref-rot" step="0.5" value="0"></div>
+    </div>
+    <p class="muted">In "Move/size picture" mode, drag to move it and use the mouse wheel to make it bigger or smaller.</p>
+
+    <h2>Map size</h2>
+    <div class="grid2">
+      <div class="field">Width <input type="number" id="world-w" min="1200" step="50"></div>
+      <div class="field">Height <input type="number" id="world-h" min="900" step="50"></div>
+    </div>
+
+    <h2>Checks</h2>
+    <ul id="warnings" class="help"></ul>
+
+    <h2>Save / share</h2>
+    <div class="row">
+      <button id="b-export">💾 Export map file</button>
+      <label class="filebtn">📂 Import map file<input type="file" id="imp-file" accept=".js,.json,application/json,text/javascript"></label>
+    </div>
+    <p class="muted">"Export" downloads <b>custom_map.js</b>. Put it in the game's <b>js</b> folder (replace the old one) to make this layout the default for everyone.</p>
+    <div class="row"><button id="b-reset" class="danger">⟲ Reset to original map</button></div>
+
+    <h2>How to use</h2>
+    <ul class="help">
+      <li><b>Move:</b> drag an item. <b>Resize:</b> drag its white corner/edge squares.</li>
+      <li><b>Pan:</b> drag empty ground (or right-drag). <b>Zoom:</b> mouse wheel.</li>
+      <li><kbd>←↑→↓</kbd> nudge the selected item (<kbd>Shift</kbd> = 10× faster).</li>
+      <li><kbd>Del</kbd> delete · <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Esc</kbd> deselect.</li>
+      <li><kbd>R</kbd> or <b>⟳ Rotate 90°</b> turns the selected item: buildings, roads, plazas, the ball court, parking, playground, garden, benches and NPC spots. The court lines, parking bays and cricket pitch turn with it.</li>
+      <li>Street lights, trees, benches, trash cans and rocks can be dragged, added, duplicated and deleted. Rocks have working solid collision; select one to toggle it.</li>
+      <li>Place an image from your computer, then drag or resize it. You can turn collision on for placed images, and delete or duplicate them like other items. Select the main gate to resize its image.</li>
+      <li>The green dividers in the middle of the roads are solid: no one can walk or drive over them. Select one to adjust its corner radius.</li>
+      <li>Both parking lots have car bays; the larger lot behind the library also has reserved bus bays. Move or resize a Parking area to change its slots.</li>
+      <li>The brown mark next to a building is its <b>entrance</b>. To change which way it faces, select the building and use the 🧭 buttons, or drag the round 🚪 handle to another side. Keep the space in front of it free.</li>
+      <li>Drag the <b>main gate</b> anywhere on the map. Use the Map X and Map Y fields for exact placement; compass buttons change which way it faces. The boundary wall stays intact when the gate is inside the map.</li>
+      <li>Hidden layers can't be clicked. Hide roads if you need to grab what's under them.</li>
+    </ul>
+    <div class="row"><a href="index.html"><button>← Back to game</button></a></div>
+  </aside>
+  <main id="stage">
+    <canvas id="cv"></canvas>
+    <div id="zoombar"><button id="z-in">＋</button><button id="z-out">－</button><button id="z-fit">Fit</button></div>
+    <div id="status">Ready</div>
+    <div id="coords"></div>
+  </main>
+</div>
+<script src="js/data.js"></script>
+<script src="js/custom_map.js"></script>
+<script src="js/map_loader.js"></script>
+<script src="js/gate_art.js"></script>
+<script src="js/building_images.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>

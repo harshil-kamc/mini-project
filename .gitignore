@@ -1,0 +1,8 @@
+node_modules/
+.vercel/
+__pycache__/
+*.pyc
+*.tmp
+Thumbs.db
+.DS_Store
+_ui_backup/

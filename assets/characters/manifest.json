@@ -1,0 +1,269 @@
+{
+  "source": "character.png",
+  "cell": {
+    "width": 104,
+    "height": 84
+  },
+  "sheet": {
+    "width": 964,
+    "height": 577,
+    "columnPitch": 104,
+    "firstFrameX": 128,
+    "labelColumnWidth": 128
+  },
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": [
+        {
+          "src": "assets/characters/idle/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/03.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/04.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/05.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/06.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/idle/07.png",
+          "width": 104,
+          "height": 84
+        }
+      ]
+    },
+    "walk_down": {
+      "row": 1,
+      "frames": [
+        {
+          "src": "assets/characters/walk_down/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/03.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/04.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/05.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/06.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/07.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_down/08.png",
+          "width": 104,
+          "height": 84
+        }
+      ]
+    },
+    "walk_up": {
+      "row": 2,
+      "frames": [
+        {
+          "src": "assets/characters/walk_up/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/03.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/04.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/05.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/06.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/07.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_up/08.png",
+          "width": 104,
+          "height": 84
+        }
+      ],
+      "source": "upwalk.jpeg",
+      "sheet": {
+        "width": 1086,
+        "height": 362,
+        "frames": 8
+      }
+    },
+    "walk_left": {
+      "row": 3,
+      "frames": [
+        {
+          "src": "assets/characters/walk_left/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/03.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/04.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/05.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/06.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/07.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_left/08.png",
+          "width": 104,
+          "height": 84
+        }
+      ]
+    },
+    "walk_right_native": {
+      "row": 4,
+      "frames": [
+        {
+          "src": "assets/characters/walk_right_native/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right_native/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right_native/03.png",
+          "width": 104,
+          "height": 84
+        }
+      ]
+    },
+    "walk_right": {
+      "row": 4,
+      "mirroredFrom": "walk_left",
+      "frames": [
+        {
+          "src": "assets/characters/walk_right/01.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/02.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/03.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/04.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/05.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/06.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/07.png",
+          "width": 104,
+          "height": 84
+        },
+        {
+          "src": "assets/characters/walk_right/08.png",
+          "width": 104,
+          "height": 84
+        }
+      ]
+    }
+  },
+  "portrait": {
+    "src": "assets/characters/portrait_player.png",
+    "width": 78,
+    "height": 71
+  },
+  "walkUpSource": "upwalk.jpeg"
+}

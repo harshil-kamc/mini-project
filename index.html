@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#070b1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MVSR RPG">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <title>MVSR College Life RPG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&family=Rajdhani:wght@500;600;700&family=Oxanium:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- ═══════════ HUD ═══════════ -->
+  <div id="hud" class="hidden">
+
+    <!-- Player status frame (top-left) -->
+    <section id="hud-player" aria-label="Player status">
+      <div class="hp-portrait">
+        <img id="hp-face" src="assets/itch/friends/player_happy.png" alt="">
+        <span class="hp-day" id="hp-day">D1</span>
+      </div>
+      <div class="hp-info">
+        <div class="hp-name"><b id="hp-name">Student</b><span>CSE · III Year</span></div>
+        <div class="vital" id="hv-energy"><svg class="gi"><use href="#i-energy"/></svg><div class="vt"><i></i></div><b>0</b></div>
+        <div class="vital" id="hv-hunger"><svg class="gi"><use href="#i-hunger"/></svg><div class="vt"><i></i></div><b>0</b></div>
+        <div class="vital" id="hv-water"><svg class="gi"><use href="#i-water"/></svg><div class="vt"><i></i></div><b>0</b></div>
+        <div class="hp-chips">
+          <span class="chip gold"><svg class="gi"><use href="#i-wallet"/></svg><b id="hp-money">₹0</b></span>
+          <span class="chip" id="hp-att"><svg class="gi"><use href="#i-check"/></svg><b>100%</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right column: quick dock, radar, quest tracker -->
+    <section id="hud-right">
+      <div id="hud-dock">
+        <button class="dock-btn" data-act="KeyT" aria-label="Timetable"><svg class="gi"><use href="#i-calendar"/></svg><kbd>T</kbd></button>
+        <button class="dock-btn" data-act="KeyM" aria-label="Campus map"><svg class="gi"><use href="#i-map"/></svg><kbd>M</kbd></button>
+        <button class="dock-btn" data-act="KeyH" aria-label="Pause"><svg class="gi"><use href="#i-pause"/></svg><kbd>Esc</kbd></button>
+      </div>
+      <div id="map-wrap">
+        <canvas id="minimap" width="336" height="336"></canvas>
+        <span class="mm-n">N</span>
+        <span class="mm-label">MVSR Campus</span>
+        <button class="mm-btn mm-in" data-act="Equal" aria-label="Zoom in"><svg class="gi"><use href="#i-zoom-in"/></svg></button>
+        <button class="mm-btn mm-out" data-act="Minus" aria-label="Zoom out"><svg class="gi"><use href="#i-zoom-out"/></svg></button>
+      </div>
+      <div id="objective" class="card"></div>
+    </section>
+    <div id="map-scrim"><span>Campus Map</span><small>Press <kbd>M</kbd> or tap the map to close</small></div>
+
+    <div id="prompt" class="hidden"></div>
+
+    <div id="bottom">
+      <div id="item-tip"></div>
+      <div id="hotbar"></div>
+    </div>
+
+    <!-- Desktop key hints (bottom-right) -->
+    <div id="hud-keys">
+      <span><kbd>F</kbd>Use</span><span><kbd>Q</kbd>Drop</span><span><kbd>Z</kbd>Wait</span>
+    </div>
+
+    <!-- Phone peek: half the phone rising from the bottom-right edge -->
+    <button id="phone-peek" aria-label="Open phone">
+      <span class="phone-bezel">
+        <span class="phone-screen">
+          <span class="phone-bar">
+            <span class="phone-signal"><i></i><i></i><i></i><i></i></span>
+            <span class="phone-carrier">MVSR</span>
+            <span class="phone-status-time" id="pp-stime">7:00 AM</span>
+            <span class="phone-batt"><i id="pp-batt"></i></span>
+          </span>
+          <span class="phone-clockzone">
+            <span class="pp-clock">
+              <span class="pp-day" id="pp-day">Day 1/12 · Mon</span>
+              <span class="pp-time" id="pp-time">7:00 AM</span>
+              <span class="pp-period" id="pp-period">Morning</span>
+            </span>
+          </span>
+        </span>
+      </span>
+      <span class="pp-plate">
+        <span class="pc-day" id="pc-day">Day 1/12 · Mon</span>
+        <span class="pc-row"><svg class="gi" id="pc-ic"><use href="#i-sun"/></svg><b class="pc-time" id="pc-time">7:00 AM</b></span>
+        <span class="pc-period" id="pc-period">Morning</span>
+        <span class="pc-track"><i id="pc-progress"></i></span>
+      </span>
+    </button>
+
+    <div id="toasts"></div>
+  </div>
+
+  <!-- ═══════════ Touch controls (phones / tablets) ═══════════ -->
+  <div id="touch" class="hidden">
+    <div id="joy" aria-label="Move"><div id="joy-knob"></div></div>
+    <div class="acts">
+      <button data-act="KeyE" class="act big" aria-label="Interact"><svg class="gi"><use href="#i-interact"/></svg></button>
+      <button data-act="phone" class="act" aria-label="Open phone"><svg class="gi"><use href="#i-phone"/></svg></button>
+      <button data-act="KeyF" class="act" aria-label="Use item"><svg class="gi"><use href="#i-use"/></svg></button>
+      <button data-act="KeyQ" class="act" aria-label="Drop item"><svg class="gi"><use href="#i-drop"/></svg></button>
+      <button data-act="KeyZ" class="act" aria-label="Wait 30 minutes"><svg class="gi"><use href="#i-wait"/></svg></button>
+    </div>
+  </div>
+  <div id="mobile-menu" class="hidden">
+    <button data-act="fullscreen" class="fs-btn" aria-label="Full screen"><svg class="gi"><use href="#i-fullscreen"/></svg></button>
+    <button data-act="KeyM" aria-label="Campus map"><svg class="gi"><use href="#i-map"/></svg></button>
+    <button data-act="KeyT" aria-label="Timetable"><svg class="gi"><use href="#i-calendar"/></svg></button>
+    <button data-act="KeyH" aria-label="Pause"><svg class="gi"><use href="#i-pause"/></svg></button>
+  </div>
+  <div id="rotate-gate">
+    <div class="rg-inner">
+      <span class="rg-phone"></span>
+      <h2 class="rg-title">Rotate your phone</h2>
+      <p class="rg-sub">MVSR College Life plays in landscape. Turn your phone sideways to continue.</p>
+    </div>
+  </div>
+  <div id="fs-tip" class="overlay hidden">
+    <div class="sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-fullscreen"/></svg><h2>Play full screen</h2></header>
+      <p>Your browser can't switch this page to full screen by itself (iPhones don't allow it).</p>
+      <p><b>iPhone / iPad (Safari):</b> tap <b>Share</b> → <b>Add to Home Screen</b>, then open the game from the new icon. It opens full screen.</p>
+      <p><b>Android:</b> tap the <b>⋮</b> menu → <b>Add to Home screen</b> / <b>Install app</b>.</p>
+      <button class="btn" data-close>OK</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ In-game phone ═══════════ -->
+  <div id="phone-overlay" class="overlay hidden">
+    <button id="phone-close" aria-label="Close phone"><svg class="gi"><use href="#i-close"/></svg></button>
+    <div id="phone">
+      <div class="phone-bezel">
+        <div class="phone-screen">
+          <div class="phone-bar">
+            <span class="phone-signal"><i></i><i></i><i></i><i></i></span>
+            <span class="phone-carrier">MVSR</span>
+            <span class="phone-status-time" id="hud-phone-time">--:--</span>
+            <span class="phone-batt"><i id="phone-batt-level"></i></span>
+          </div>
+
+          <div class="phone-view phone-home" data-view="home">
+            <div class="phone-clockzone">
+              <div id="clock">
+                <div id="hud-day"></div>
+                <div id="hud-time"></div>
+                <div id="hud-period"></div>
+              </div>
+            </div>
+            <div class="phone-apps">
+              <button class="phone-app" data-app="campex">
+                <span class="app-ic"><svg class="gi"><use href="#i-campex"/></svg></span>
+                <span class="app-name">CampeX</span>
+              </button>
+              <button class="phone-app" data-app="stats">
+                <span class="app-ic"><svg class="gi"><use href="#i-stats"/></svg></span>
+                <span class="app-name">Stats</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="phone-view hidden" data-view="campex">
+            <div class="phone-app-header">
+              <button class="phone-back" data-back aria-label="Back"><svg class="gi"><use href="#i-back"/></svg></button>
+              <span class="phone-app-title">CampeX</span>
+              <span class="phone-app-sub">Academics</span>
+            </div>
+            <div class="phone-app-body" id="campex-body"></div>
+          </div>
+
+          <div class="phone-view hidden" data-view="stats">
+            <div class="phone-app-header">
+              <button class="phone-back" data-back aria-label="Back"><svg class="gi"><use href="#i-back"/></svg></button>
+              <span class="phone-app-title">Stats</span>
+              <span class="phone-app-sub">Condition</span>
+            </div>
+            <div class="phone-app-body">
+              <div id="stats">
+                <div class="bar" id="bar-energy"><span><svg class="gi"><use href="#i-energy"/></svg>Energy</span><div><i></i></div><b></b></div>
+                <div class="bar" id="bar-hunger"><span><svg class="gi"><use href="#i-hunger"/></svg>Hunger</span><div><i></i></div><b></b></div>
+                <div class="bar" id="bar-water"><span><svg class="gi"><use href="#i-water"/></svg>Water</span><div><i></i></div><b></b></div>
+                <div class="bar" id="bar-prep"><span><svg class="gi"><use href="#i-prep"/></svg>Prep</span><div><i></i></div><b></b></div>
+                <div class="bar" id="bar-social"><span><svg class="gi"><use href="#i-social"/></svg>Social</span><div><i></i></div><b></b></div>
+                <div class="bar" id="bar-fitness"><span><svg class="gi"><use href="#i-fitness"/></svg>Fitness</span><div><i></i></div><b></b></div>
+              </div>
+              <div class="phone-wallet"><span><svg class="gi"><use href="#i-wallet"/></svg>Wallet</span><b id="hud-money">₹0</b></div>
+              <p class="phone-note" id="stats-note"></p>
+            </div>
+          </div>
+        </div>
+        <button id="phone-home" class="phone-homebtn" aria-label="Phone home"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ Comic dialogue ═══════════ -->
+  <div id="comic" class="hidden">
+    <div id="comic-page"></div>
+    <div id="comic-hint">SPACE / CLICK ▶</div>
+  </div>
+
+  <!-- ═══════════ Overlays ═══════════ -->
+  <div id="locker" class="overlay hidden">
+    <div class="sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-locker"/></svg><h2>Hostel Locker</h2></header>
+      <p class="muted">Click an item to move it between your 9-slot backpack and the locker.</p>
+      <h3><svg class="gi"><use href="#i-backpack"/></svg>Backpack <small>9 slots</small></h3>
+      <div id="locker-bag" class="grid"></div>
+      <h3><svg class="gi"><use href="#i-locker"/></svg>Locker <small>12 slots</small></h3>
+      <div id="locker-store" class="grid"></div>
+      <button class="btn" data-close>Done</button>
+    </div>
+  </div>
+
+  <div id="timetable" class="overlay hidden">
+    <div class="sheet wide">
+      <header class="sheet-head"><svg class="gi"><use href="#i-calendar"/></svg><h2>CSE · III Year · Weekly Timetable</h2></header>
+      <div id="tt-body"></div>
+      <button class="btn" data-close>Close</button>
+    </div>
+  </div>
+
+  <div id="report" class="overlay hidden">
+    <div class="sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-report"/></svg><h2>Semester Report Card</h2></header>
+      <div id="report-body"></div>
+      <button class="btn ghost" data-close>Close</button>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="pause-shell">
+      <section class="pause-status">
+        <div class="pause-kicker">Game Paused</div>
+        <div class="pause-player">
+          <img id="pause-face" alt="">
+          <div>
+            <h2 id="pause-name">Student</h2>
+            <p id="pause-meta">Day 1 - 7:00 AM</p>
+          </div>
+        </div>
+        <div class="pause-vitals" id="pause-vitals"></div>
+        <p class="pause-save" id="pause-save">Progress is saved automatically.</p>
+      </section>
+      <nav class="pause-actions" aria-label="Pause menu">
+        <button class="menu-item primary" id="btn-resume"><svg class="gi"><use href="#i-play"/></svg><span>Resume</span></button>
+        <button class="menu-item" id="btn-pause-controls"><svg class="gi"><use href="#i-controller"/></svg><span>Controls</span></button>
+        <button class="menu-item" id="btn-pause-settings"><svg class="gi"><use href="#i-settings"/></svg><span>Settings</span></button>
+        <button class="menu-item" id="btn-pause-save"><svg class="gi"><use href="#i-check"/></svg><span>Save Game</span></button>
+        <button class="menu-item danger" id="btn-pause-menu"><svg class="gi"><use href="#i-back"/></svg><span>Main Menu</span></button>
+      </nav>
+    </div>
+  </div>
+
+  <div id="pause-confirm" class="overlay hidden">
+    <div class="sheet confirm-sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-warning"/></svg><h2>Return to Main Menu?</h2></header>
+      <p>Your progress will be saved before returning. You can continue from the main menu later.</p>
+      <div class="panel-actions">
+        <button class="btn" id="btn-confirm-menu"><svg class="gi"><use href="#i-back"/></svg>Save &amp; Main Menu</button>
+        <button class="btn ghost" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="help" class="overlay hidden">
+    <div class="sheet pause-sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-controller"/></svg><h2>Controls</h2></header>
+      <table class="keys">
+        <tr><td><kbd>WASD</kbd> <kbd>Arrows</kbd></td><td>Move</td></tr>
+        <tr><td><kbd>E</kbd> <kbd>Space</kbd></td><td>Interact, talk, enter buildings, advance comics</td></tr>
+        <tr><td><kbd>1</kbd>-<kbd>9</kbd> / wheel</td><td>Select backpack slot</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Use selected item (snacks, chai)</td></tr>
+        <tr><td><kbd>Q</kbd></td><td>Drop selected item</td></tr>
+        <tr><td><kbd>Z</kbd></td><td>Wait 30 minutes</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Open / close your phone</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Timetable &amp; milestones</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Toggle big campus map</td></tr>
+        <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Zoom the camera in / out</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Pause / resume</td></tr>
+        <tr><td><kbd>H</kbd></td><td>Open this controls screen</td></tr>
+      </table>
+      <p class="touch-only"><b>On a phone:</b> drag the joystick to move. The big hand button interacts / advances. Use the phone button to open your phone; the other buttons use, drop, and wait 30 min. Tap a backpack slot to select it. Top buttons: full screen, map, timetable, pause. Zoom with the buttons on the radar.</p>
+      <p class="muted">Keep attendance at 75% or above, write all three exams, and enjoy campus life. Progress auto-saves every time you sleep.</p>
+      <div class="panel-actions"><button class="btn ghost" data-close>Back</button></div>
+    </div>
+  </div>
+
+  <div id="settings" class="overlay hidden">
+    <div class="sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-settings"/></svg><h2>Settings</h2></header>
+      <div class="setting-row">
+        <div><b>Full Screen</b><small>Hide the browser chrome and lock the game to landscape when supported.</small></div>
+        <button class="btn ghost fs-btn" id="btn-fs-title"><svg class="gi"><use href="#i-fullscreen"/></svg>Full screen</button>
+      </div>
+      <div class="setting-row">
+        <div><b>Intro Video</b><small>Watch the studio intro again.</small></div>
+        <button class="btn ghost" id="btn-replay-intro"><svg class="gi"><use href="#i-play"/></svg>Replay intro</button>
+      </div>
+      <div class="setting-row">
+        <div><b>Map Editor</b><small>Move, add or delete anything on the campus: buildings, roads, parking, trees, street lights, trash cans and more. Saved in this browser; use "Export map file" there to keep it forever.</small></div>
+        <a class="btn ghost" href="editor.html">🗺️ Edit Map</a>
+      </div>
+      <div class="panel-actions"><button class="btn ghost" data-close>Back</button></div>
+    </div>
+  </div>
+
+  <div id="credits" class="overlay hidden">
+    <div class="sheet">
+      <header class="sheet-head"><svg class="gi"><use href="#i-credits"/></svg><h2>Credits</h2></header>
+      <p><b>MVSR College Life RPG</b> - a comic-style campus life RPG.</p>
+      <p class="muted">brought to you by H&2S team</p>
+      <p class="muted"><b>H&2S team:</b></p><p>Harshil Kamchetty</p><p>Byreddy Sachin</p><p>Buddi Sanjay</p>    <div class="panel-actions"><button class="btn ghost" data-close>Back</button></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ Title ═══════════ -->
+    <!-- Intro video -->
+  <div id="intro" aria-label="Intro">
+    <div class="intro-stage">
+      <video id="intro-video" src="assets/intro/Intro.mp4" playsinline preload="auto"></video>
+      <div class="intro-grain"></div>
+      <div class="intro-ready" id="intro-ready">
+        <div class="intro-studio">MVSR</div>
+	<h2 class="intro-studio" style="font: 26px/0.85 var(--ui); letter-spacing: 0px;">Mostly Vacant Seats Recruitment</h2>
+        <p>College Life RPG</p>
+        <button class="intro-play" id="intro-play"><svg class="gi"><use href="#i-play"/></svg><span>Play</span></button>
+        <small>Best with sound on</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Title / main menu -->
+  <div id="title">
+    <canvas id="title-bg"></canvas>
+    <div class="menu-shell">
+      <section class="menu-brand">
+        <div class="logo">MVSR<span>College Life RPG</span></div>
+        <p class="tagline">A unforgettable semester.</p>
+
+        
+      </section>
+      <nav class="menu-list" aria-label="Main menu">
+        <button class="menu-item primary" id="btn-continue" disabled><svg class="gi"><use href="#i-continue"/></svg><span>Continue</span><small>Load your last save</small></button>
+        <button class="menu-item" id="btn-new"><svg class="gi"><use href="#i-new"/></svg><span>New Semester</span><small>Create a student</small></button>
+        <button class="menu-item" id="btn-help-menu"><svg class="gi"><use href="#i-controller"/></svg><span>How to Play</span><small>Controls &amp; tips</small></button>
+        <button class="menu-item" id="btn-settings-menu"><svg class="gi"><use href="#i-settings"/></svg><span>Settings</span><small>Display &amp; intro</small></button>
+        <button class="menu-item" id="btn-credits-menu"><svg class="gi"><use href="#i-credits"/></svg><span>Credits</span><small>Art &amp; music</small></button>
+      </nav>
+    </div>
+    <div class="menu-panel hidden" id="new-game-panel" role="dialog" aria-modal="true" aria-labelledby="new-game-title">
+      <button class="panel-close" data-menu-close aria-label="Back"><svg class="gi"><use href="#i-back"/></svg></button>
+      <header class="panel-head"><span class="panel-kicker">New Semester</span><h2 id="new-game-title">Create your student</h2></header>
+      <div class="creator">
+        <img id="title-portrait" alt="Your character">
+        <div>
+          <label>Your name<input id="name" maxlength="14" placeholder="Student" autocomplete="off"></label>
+          <p class="muted">Third-year CSE. Ready for one big semester.</p>
+          <div id="shirts"></div>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="btn-begin"><svg class="gi"><use href="#i-play"/></svg>Begin Semester</button>
+        <button class="btn ghost" data-menu-close>Back</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/ui_icons.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/custom_map.js"></script>
+  <script src="js/map_loader.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/player_sprite.js"></script>
+  <script src="js/gate_art.js"></script>
+  <script src="js/building_images.js"></script>
+  <script src="js/vehicle_art.js"></script>
+  <script src="js/kenney_art.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/comic.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

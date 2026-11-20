@@ -1,0 +1,44 @@
+MVSR College Life RPG — art credits
+====================================
+
+Kenney (www.kenney.nl) — CC0 1.0 (public domain)
+  • Roguelike Modern City — buildings (walls, windows, doors, roofs), roads, footpaths, trees, lamps, benches, bins, cars
+  • Tiny Town — grass
+  • PICO-8 City — college buses and fallback props
+  • Pixel Vehicle Pack — bikes and scooters (not currently used)
+  Licence files: assets/kenney/License-*.txt
+
+"A Bunch of Rocks" by VerzatileDev — https://verzatiledev.itch.io
+  Assets by VerzatileDev, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Licence file: assets/itch/License-rocks-CC-BY-4.0.txt
+
+Nasha's Parallax Worlds: Free Neon Downtown & Rooftops — title screen background
+  Free for use in games (no redistribution as an asset pack). Licence file: assets/itch/License-neon-parallax.txt
+
+Cars — "Large Sedan" by MrJaneLAB (https://mrjanelab.itch.io), CC0. Rendered to pixel sprites for this game (assets/cars/).
+Buses, taxi, van, cars, police car and delivery trucks — low-poly 3D packs "CityTransport" (by Stanisa) and a low-poly
+  car/bus/truck pack with palette textures, rendered to pixel sprites for this game (assets/vehicles/).
+  (no licence file came with these downloads — check each pack's download page for its terms before publishing)
+MVSR college bus 3D model — "college bus of India (#MVSR college bus)" by Akromolo / ROMOLO on SketchUp 3D Warehouse
+  https://3dwarehouse.sketchup.com/model/5c380fce-35ff-48da-8763-61699dcb108f/college-bus-of-India-MVSR-college-bus
+  A top-down render of it is kept in assets/vehicles/mvsr_bus_top.png but is no longer used in the game.
+MVSR college bus seen in the game — vector art drawn for this game (js/vehicle_art.js).
+
+Parked/traffic car sprites (sedan, hatch, SUV, taxi, police, van, truck and car2-car13) — extracted from the Flash game
+  "Parking Fury" (parkingfury_v18.swf), recoloured/rotated to top-down for this game (assets/vehicles/parkingfury/).
+  All rights belong to the original Parking Fury creators. No licence came with the file — get permission before publishing.
+
+Friend portraits (Priya, Sana, Arjun, Ravi) — sprites by judas la carotte (itch.io)
+Portraits of you, Prof. Lakshmi, Coach Mahesh and Mr. Sharma — AI-generated for this game with Canva's image generator
+Sliding glass doors ("doors.png"), fruit icons ("Fruit+") — downloaded from itch.io
+  (no licence file came with these downloads — check each item's itch.io page for its terms before publishing)
+
+UI icons (HUD, menus, items, comic scene art) — js/ui_icons.js
+  • game-icons.net — icons by Lorc, Delapouite and contributors, licensed under CC BY 3.0
+    (https://creativecommons.org/licenses/by/3.0/) — https://game-icons.net
+  • Phosphor Icons — MIT licence — https://phosphoricons.com  (pause, zoom, full screen, close, back, map, controls)
+UI fonts — Rajdhani and Oxanium (Google Fonts, SIL Open Font Licence)
+
+Intro video: Intro.mp4 supplied with the project (assets/intro/Intro.mp4).
+
+Main gate, comic panels, NPC sprites and everything else: made for this game.
