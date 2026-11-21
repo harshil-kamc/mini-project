@@ -404,9 +404,28 @@ function drawTileBuilding(g, b, dark, t) {
 //     vehicles rotate to any angle — no more snapping between four sprites or sliding sideways into a bay.
 //   • Every vehicle looks ahead along its own route and brakes for vehicles (moving or parked) and people.
 //   • Art: hi-res vector vehicles from js/vehicle_art.js.
-const TRAFFIC = { cars: [], plan: null, plans: [], bays: { car: [], bus: [] }, drive: null, gates: null, graph: null, vnav: null };
+const TRAFFIC = { cars: [], plan: null, plans: [], bays: { car: [], bus: [] }, drive: null, gates: null, graph: null, vnav: null, highway: null, highwayAt: 0, highwayDir: 1 };
 const tmin = (h, m = 0) => h * 60 + m;
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const MEDIAN_CLEARANCE = 38;
+function segmentHitsMedian(ax, ay, bx, by, pad = 0) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 8));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+    if (MEDIANS.some(m => x > m.x - pad && x < m.x + m.w + pad && y > m.y - pad && y < m.y + m.h + pad)) return true;
+  }
+  return false;
+}
+
+function findMainHighway() {
+  const gate = TRAFFIC.gates && TRAFFIC.gates.main;
+  if (!gate || !gate.freePosition || !gate.horiz || gate.side !== 'S') return null;
+  const road = ROADS.filter(r => r.w >= r.h && gate.outside.x >= r.x && gate.outside.x <= r.x + r.w)
+    .sort((a, b) => Math.abs(a.y - gate.outside.y) - Math.abs(b.y - gate.outside.y))[0];
+  if (!road || gate.outside.y < road.y || gate.outside.y > road.y + road.h) return null;
+  return { gate, road, y: road.y + road.h / 2, offset: Math.min(42, Math.max(18, road.h * 0.18)) };
+}
+const highwayLaneY = (direction) => TRAFFIC.highway.y - direction * TRAFFIC.highway.offset;
 
 // Driving characteristics (world px, real seconds)
 const VSPEC = {
@@ -422,6 +441,7 @@ function buildRoadGraph() {
   const link = (a, b, width, road = true) => {
     if (a === b) return;
     const A = nodes[a], B = nodes[b], d = Math.hypot(A.x - B.x, A.y - B.y);
+    if (segmentHitsMedian(A.x, A.y, B.x, B.y, MEDIAN_CLEARANCE)) return;
     const cost = d * (width < 60 ? 3 : 1);   // keep traffic on the wide roads
     A.e.push({ to: b, cost, width, road }); B.e.push({ to: a, cost, width, road });
   };
@@ -451,6 +471,7 @@ function splitRoadAt(G, p, minW = 0, maxD = Infinity, allowedRoads = null) {
     if (e.to < a || e.width < minW || !e.road || (allowedRoads && (!allowedRoads.has(a) || !allowedRoads.has(e.to)))) continue;
     const A = G.nodes[a], B = G.nodes[e.to], dx = B.x - A.x, dy = B.y - A.y, l2 = dx * dx + dy * dy || 1;
     const t = Math.max(0, Math.min(1, ((p.x - A.x) * dx + (p.y - A.y) * dy) / l2)), qx = A.x + dx * t, qy = A.y + dy * t, d = Math.hypot(p.x - qx, p.y - qy);
+    if (segmentHitsMedian(p.x, p.y, qx, qy, MEDIAN_CLEARANCE)) continue;
     if (!best || d < best.d) best = { d, a, b: e.to, qx, qy, width: e.width };
   }
   if (!best || best.d > maxD) return null;
@@ -542,8 +563,12 @@ function lanePath(pts, widths, halfW = 0) {
   if (P.length < 2) return P.map((p, i) => ({ x: p.x, y: p.y, ...keep[i] }));
   const offOf = (w) => { const o = Math.max(6, Math.min(24, w * 0.23)); return halfW && w >= 4 * halfW ? Math.max(o, halfW + 2.5) : o; };
   const seg = (i) => {
-    const a = P[i], b = P[i + 1], dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, off = offOf(Wd[i]);
-    const nx = dy / l, ny = -dx / l;   // left of the direction of travel (screen y points down)
+    const a = P[i], b = P[i + 1], dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+    const nx = dy / l, ny = -dx / l, baseOff = offOf(Wd[i]);   // left of the direction of travel (screen y points down)
+    const clearance = halfW + 26;
+    let side = segmentHitsMedian(a.x + nx * baseOff, a.y + ny * baseOff, b.x + nx * baseOff, b.y + ny * baseOff, clearance) ? -1 : 1;
+    if (side < 0 && segmentHitsMedian(a.x - nx * baseOff, a.y - ny * baseOff, b.x - nx * baseOff, b.y - ny * baseOff, clearance)) side = 0;
+    const off = baseOff * side;
     return { ax: a.x + nx * off, ay: a.y + ny * off, bx: b.x + nx * off, by: b.y + ny * off, dx: dx / l, dy: dy / l };
   };
   const out = [];
@@ -651,6 +676,33 @@ function takeBay(kind) {
   if (!free.length) return null;
   free[0].taken = true; return free[0];
 }
+function spawnThroughTraffic(direction) {
+  const model = VehicleArt.CAR_MODELS[(Math.random() * VehicleArt.CAR_MODELS.length) | 0];
+  const v = makeVehicle('car', { model, highwayTraffic: true, state: 'out' });
+  const y = highwayLaneY(direction), margin = v.L / 2 + 24;
+  const start = direction > 0 ? -margin : WORLD_W + margin, end = direction > 0 ? WORLD_W + margin : -margin;
+  v.path = [{ x: start, y }, { x: end, y }];
+  v.pi = 1; v.x = start; v.y = y; v.ang = direction > 0 ? 0 : Math.PI;
+  v.v = v.spec.cruise * 0.68; v.on = true; v.alpha = 0;
+}
+function spawnHighwayArrival(direction) {
+  if (!TRAFFIC.highway) return false;
+  const bay = takeBay('car');
+  if (!bay) return false;
+  const model = VehicleArt.CAR_MODELS[(Math.random() * VehicleArt.CAR_MODELS.length) | 0];
+  const v = makeVehicle('car', {
+    model, gate: TRAFFIC.highway.gate, arriveAt: S.min, departAt: S.min + 24 + Math.random() * 12,
+    bay, highwayTraffic: true, highwayEntry: { direction },
+  });
+  return true;
+}
+function updateHighwayTraffic() {
+  if (!TRAFFIC.highway || S.min < tmin(6, 30) || S.min >= tmin(20) || S.min < TRAFFIC.highwayAt) return;
+  const direction = TRAFFIC.highwayDir;
+  TRAFFIC.highwayDir = -direction;
+  if (!(Math.random() < 0.25 && spawnHighwayArrival(direction))) spawnThroughTraffic(direction);
+  TRAFFIC.highwayAt = S.min + 10 + Math.random() * 6;
+}
 function buildTraffic() {
   TRAFFIC.cars = []; TRAFFIC.busRoutes = null; TRAFFIC.bays = { car: [], bus: [] };
   TRAFFIC.gates = { main: gateInfo(GATE, WORLD_W, WORLD_H), back: backGateInfo(getBackGate(), WORLD_W, WORLD_H) };
@@ -661,6 +713,7 @@ function buildTraffic() {
     : { N: { x: M.exit.x, y: -60 }, S: { x: M.exit.x, y: WORLD_H + 60 }, E: { x: WORLD_W + 60, y: M.exit.y }, W: { x: -60, y: M.exit.y } }[M.side];
   const B = TRAFFIC.gates.back;
   B.outside = { x: B.inside.x + (B.outside.x - B.inside.x) * 2.5, y: B.inside.y + (B.outside.y - B.inside.y) * 2.5 };
+  TRAFFIC.highway = findMainHighway();
   TRAFFIC.plans = parkingAreas().map(P => parkingPlan(P, ROADS));
   TRAFFIC.plan = TRAFFIC.plans[0];
   TRAFFIC.drive = TRAFFIC.plans.map(p => lotDriveway(p, ROADS));
@@ -684,8 +737,22 @@ function buildTraffic() {
   TRAFFIC.vnav = true;
 
   const sunday = weekday(S.day) === 6, now = S.min;
+  TRAFFIC.highwayAt = Math.max(now + 2, tmin(6, 45));
+  TRAFFIC.highwayDir = 1;
   const id = (k) => npcs.find(n => n.id === k);
-  for (const n of npcs) if (n.commuter) { n.vehicle = null; n.arrived = false; n.boarded = false; n.spawnInZone = false; n.spawnAt = null; n.leaveAt = 99; n.classB = null; n.inClass = false; n.busStop = null; }
+  for (const n of npcs) if (n.commuter) {
+    n.vehicle = null; n.arrived = false; n.boarded = false; n.spawnInZone = false; n.spawnAt = null;
+    n.leaveAt = 99; n.classB = null; n.inClass = false; n.busStop = null;
+    const dayIndex = n.kind === 'day' ? Number(n.id.slice(3)) : -1;
+    n.walkingDayScholar = !sunday && n.kind === 'day' && dayIndex % 5 === 0;
+    n.busRider = n.commuter && !n.walkingDayScholar && (/^bus\d/.test(n.id) || ['student16', 'student17', 'student18', 'student19'].includes(n.id));
+    if (n.walkingDayScholar) {
+      n.walkArrivalAt = tmin(7, 35) + (dayIndex % 6) * 5;
+      n.walkLeaveAt = tmin(17, 10) + (dayIndex % 6) * 5;
+      n.leaveAt = n.walkLeaveAt / 60;
+    }
+    n.walkArrivalDone = false; n.walkRoute = null; n.walkTarget = null;
+  }
   const ride = (v, people, driver) => {
     for (const p of people) if (p) { v.people.push(p); p.vehicle = v; p.leaveAt = (v.departAt - (v.kind === 'bus' ? 50 : 20)) / 60; }
     v.driver = driver || null;
@@ -704,6 +771,7 @@ function buildTraffic() {
     const n = id(k); if (!n || (sunday && k !== 'librarian')) continue;
     const bay = takeBay('car');
     const v = makeVehicle('car', { gate, arriveAt: tmin(ah, am), departAt: tmin(dh, dm), bay, dropOff: !bay, model: k === 'prof' ? 'sedan' : undefined });
+    if (gate === main && TRAFFIC.highway) v.highwayEntry = { direction: v.id % 2 ? 1 : -1 };
     ride(v, [n], n);
   }
   // two students come by car / taxi: dropped off in the lot, they walk out of the gate in the evening
@@ -711,6 +779,7 @@ function buildTraffic() {
     const n = id(k); if (!n || n.vehicle) return;
     const bay = takeBay('car');
     const v = makeVehicle('car', { model: i ? 'taxi' : 'hatch', gate: i ? back : main, arriveAt: tmin(8, 20 + i * 25), departAt: tmin(17, 0), bay, dropOff: !bay });
+    if (v.gate === main && TRAFFIC.highway) v.highwayEntry = { direction: i % 2 ? -1 : 1 };
     ride(v, [n]); n.busRider = false;
   });
   // college buses between 8:30 and 9:15, leaving one bus bay for the canteen truck, riders shared out between them
@@ -729,7 +798,8 @@ function buildTraffic() {
     const tb = takeBay('bus');
     makeVehicle('bus', { model: 'truck', gate: back, arriveAt: tmin(10, 30), departAt: tmin(11, 10), bay: tb, dropOff: !tb });
   }
-  { const pb = takeBay('car'); makeVehicle('car', { model: 'police', gate: main, arriveAt: tmin(13, 0), departAt: tmin(13, 35), bay: pb, dropOff: !pb }); }
+  { const pb = takeBay('car'); const v = makeVehicle('car', { model: 'police', gate: main, arriveAt: tmin(13, 0), departAt: tmin(13, 35), bay: pb, dropOff: !pb });
+    if (TRAFFIC.highway) v.highwayEntry = { direction: 1 }; }
 
   // loading a save in the middle of the day: put everything where it should be by now
   for (const v of TRAFFIC.cars) {
@@ -777,15 +847,27 @@ function arrivalPath(v) {
   const road = (v.busRoute && busRoadPath(v)) || roadPath(T.graph, v.gate.nOut, plan.node, v.W + 2, v.W / 2); if (!road) return null;
   const pts = road.slice(0, -1).map(p => ({ ...p }));
   const lot = Ln.loop.map((p, i) => ({ ...p, slow: i < 2, mid: i >= 2 }));   // crawl through the entrance, brisk up the aisle
+  let path;
   if (v.dropOff) {   // stop by the in lane, let people out, then round the loop and out again
     const drop = Ln.inAt(150);
-    return [...pts, { ...lot[0] }, { ...lot[1] }, { x: drop.x, y: drop.y, slow: true, stop: 2.5, drop: true }, ...lot.slice(2), ...exitPath(v, plan.aisle.Vc - 160)];
+    path = [...pts, { ...lot[0] }, { ...lot[1] }, { x: drop.x, y: drop.y, slow: true, stop: 2.5, drop: true }, ...lot.slice(2), ...exitPath(v, plan.aisle.Vc - 160)];
+  } else {
+    const enter = v.bay.enter, v0 = Ln.vOf(enter[0]);
+    // in-lane bays: straight up the in lane and in; out-lane bays: round the loop first
+    const loop = v.bay.loc.noseUp ? lot.filter((p, i) => i < 2 && Ln.vOf(p) < v0 - 10)
+      : lot.filter((p, i) => i < lot.length - 1 || (!v.bay.direct && Ln.vOf(p) > v0 + 10));
+    path = [...pts, ...loop, ...enter.map((p, i) => ({ ...p, slow: !(v.bay.direct && i === 0), mid: v.bay.direct && i === 0 }))];
   }
-  const enter = v.bay.enter, v0 = Ln.vOf(enter[0]);
-  // in-lane bays: straight up the in lane and in; out-lane bays: round the loop first
-  const loop = v.bay.loc.noseUp ? lot.filter((p, i) => i < 2 && Ln.vOf(p) < v0 - 10)
-    : lot.filter((p, i) => i < lot.length - 1 || (!v.bay.direct && Ln.vOf(p) > v0 + 10));
-  return [...pts, ...loop, ...enter.map((p, i) => ({ ...p, slow: !(v.bay.direct && i === 0), mid: v.bay.direct && i === 0 }))];
+  if (!v.highwayEntry || !T.highway) return path;
+  const direction = v.highwayEntry.direction, laneY = highwayLaneY(direction);
+  const margin = v.L / 2 + 24, startX = direction > 0 ? -margin : WORLD_W + margin;
+  const turnX = T.highway.gate.outside.x - direction * Math.max(110, v.spec.Rmin * 1.8);
+  const gatePoint = path[0];
+  if (v.dropOff) {
+    const last = path[path.length - 1], endX = direction > 0 ? WORLD_W + margin : -margin;
+    path = [...path, { x: last.x, y: laneY }, { x: endX, y: laneY }];
+  }
+  return [{ x: startX, y: laneY }, { x: turnX, y: laneY }, { x: gatePoint.x, y: laneY }, ...path];
 }
 function exitPath(v, fromV, plan = v.bay && v.bay.plan || TRAFFIC.plan) {
   const T = TRAFFIC, Ln = plan.lines;
@@ -797,18 +879,24 @@ function exitPath(v, fromV, plan = v.bay && v.bay.plan || TRAFFIC.plan) {
 function departurePath(v) {
   const b = v.bay, plan = b.plan;
   // near-parallel bays: drive out forwards if nothing is parked in the bay ahead, else reverse out
+  let path;
   if (b.leaveFwd) {
     const list = plan.bays[b.kind], i = list.indexOf(b), ahead = list[i - 1];
     const blocked = ahead && TRAFFIC.cars.some(o => o !== v && o.on && o.bay === ahead && o.state === 'parked');
-    if (!blocked) return [...b.leaveFwd.map(p => ({ ...p, slow: true })), ...exitPath(v, b.vLaneFwd)];
+    if (!blocked) path = [...b.leaveFwd.map(p => ({ ...p, slow: true })), ...exitPath(v, b.vLaneFwd)];
   }
-  const rev = b.leave.map(p => ({ ...p, rev: true, slow: true }));
-  if (b.loc.noseUp) {   // backed out pointing up the lot: carry on up the in lane, round the loop and out
-    const Ln = plan.lines, A = plan.aisle;
-    const loop = Ln.loop.slice(2).map((p, i) => ({ ...p, mid: true })).filter((p, i) => i > 0 || Ln.vOf(p) > b.vLane + 30);
-    return [...rev, ...loop, ...exitPath(v, A.Vc - 150, plan)];
+  if (!path) {
+    const rev = b.leave.map(p => ({ ...p, rev: true, slow: true }));
+    if (b.loc.noseUp) {   // backed out pointing up the lot: carry on up the in lane, round the loop and out
+      const Ln = plan.lines, A = plan.aisle;
+      const loop = Ln.loop.slice(2).map((p, i) => ({ ...p, mid: true })).filter((p, i) => i > 0 || Ln.vOf(p) > b.vLane + 30);
+      path = [...rev, ...loop, ...exitPath(v, A.Vc - 150, plan)];
+    } else path = [...rev, ...exitPath(v, b.vLane, plan)];
   }
-  return [...rev, ...exitPath(v, b.vLane, plan)];
+  if (!v.highwayEntry || !TRAFFIC.highway) return path;
+  const direction = v.highwayEntry.direction, laneY = highwayLaneY(direction), last = path[path.length - 1];
+  const endX = direction > 0 ? WORLD_W + v.L / 2 + 24 : -v.L / 2 - 24;
+  return [...path, { x: last.x, y: laneY }, { x: endX, y: laneY }];
 }
 // Round off the corners of a forward route into arcs the vehicle can actually drive (radius ≈ its turning circle),
 // so long vehicles start turning early instead of overshooting a sharp corner. Bay manoeuvres, reversing and stop
@@ -904,6 +992,9 @@ function vehicleBlocks(x, y, fx, fy) {
 // Would the vehicle at pose (x, y, ang) touch anything it isn't already touching? Returns the blocker.
 // This is the hard rule: a give-way only relaxes the cautious look-ahead, never this.
 function poseBlocked(v, x, y, ang, people) {
+  for (const m of MEDIANS) {
+    if (obbOverlap(x, y, ang, v.L / 2, v.W / 2, m.x + m.w / 2, m.y + m.h / 2, 0, m.w / 2, m.h / 2)) return { median: m };
+  }
   for (const o of TRAFFIC.cars) {
     if (o === v || !o.on || o.state === 'gone' || o.alpha <= 0) continue;
     if (ghosting(v, o)) continue;
@@ -960,6 +1051,7 @@ function updateTraffic(dt) {
   if (!TRAFFIC.cars.length || !TRAFFIC.vnav) return;
   dt = Math.min(dt, 0.05);
   const now = S.min;
+  updateHighwayTraffic();
   const people = [{ x: S.x, y: S.y, me: true }, ...npcs.filter(n => n.visible)];
   for (const v of TRAFFIC.cars) {
     if (v.static) { v.on = true; v.state = 'parked'; }
@@ -985,6 +1077,7 @@ function updateTraffic(dt) {
     const r = vehicleRect(v); v.sortY = r.y + r.h; v.rx = v.x; v.ry = v.y;
     if (v.state === 'parked') v._parkedSort = true;
   }
+  if (TRAFFIC.cars.length > 40) TRAFFIC.cars = TRAFFIC.cars.filter(v => !v.highwayTraffic || v.state !== 'gone');
 }
 // Nobody may stand inside a vehicle: anyone touching one (e.g. appearing next to it) is moved just clear of it.
 // Where people step out: beside the door on the kerb (left) side — front door for buses, rear seat for cars —

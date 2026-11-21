@@ -267,7 +267,10 @@ function makeNPCs() {
   const STAY = { prof: 'adminFront', coach: 'ground', librarian: 'libraryFront', anna: 'canteenFront', priya: 'libraryFront', sana: 'audiFront' };
   for (const n of npcs) {
     if (STAY[n.id] || n.kind === 'day' || /^staff\d/.test(n.id)) { n.commuter = true; n.stayZone = STAY[n.id] || (n.kind === 'staff' ? 'adminFront' : 'quad'); }
-    n.busRider = n.commuter && (/^bus\d/.test(n.id) || ['student16', 'student17', 'student18', 'student19'].includes(n.id));
+    const dayIndex = n.kind === 'day' ? Number(n.id.slice(3)) : -1;
+    n.walkingDayScholar = n.kind === 'day' && dayIndex % 5 === 0;
+    n.walkSide = dayIndex % 2 ? 1 : -1;
+    n.busRider = n.commuter && !n.walkingDayScholar && (/^bus\d/.test(n.id) || ['student16', 'student17', 'student18', 'student19'].includes(n.id));
   }
   // Every NPC gets their own rhythm so nobody moves in lockstep.
   for (const n of npcs) Object.assign(n, {
@@ -400,7 +403,15 @@ function setNpcTarget(n, x, y) {
   n.stuck = 0; n.replans = 0;
 }
 
-const npcHome = (n) => n.commuter ? vehicleDoor(n.vehicle) : n.kind === 'hostel' ? doorOf(n.home)
+function dayScholarHome(n) {
+  const roads = ROADS.filter(r => r.w >= r.h && GATE_INFO.x >= r.x && GATE_INFO.x <= r.x + r.w)
+    .sort((a, b) => Math.abs(a.y - GATE_INFO.y) - Math.abs(b.y - GATE_INFO.y));
+  const road = roads[0];
+  if (!road) return GATE_EXIT;
+  const x = n.walkSide < 0 ? Math.max(60, road.x + 60) : Math.min(WORLD_W - 60, road.x + road.w - 60);
+  return { x, y: Math.max(30, road.y - 9) };
+}
+const npcHome = (n) => n.walkingDayScholar ? dayScholarHome(n) : n.commuter ? vehicleDoor(n.vehicle) : n.kind === 'hostel' ? doorOf(n.home)
   : GATE_INFO.horiz ? { x: GATE_EXIT.x + (n.r2 - 0.5) * 160, y: GATE_EXIT.y } : { x: GATE_EXIT.x, y: GATE_EXIT.y + (n.r2 - 0.5) * 160 };
 
 // Where this NPC should be right now (null = heading home / not on campus).
@@ -421,6 +432,10 @@ function crowdAt(x, y, self, r = 85) {
 }
 function npcZone(n) {
   const h = hour();
+  if (n.walkingDayScholar) {
+    if (S.min < n.walkArrivalAt || S.min >= n.walkLeaveAt) return null;
+    return n.sched(h + n.jit) || n.stayZone;
+  }
   if (n.commuter) {   // only on campus between getting out of their vehicle and walking back to it
     if (!n.vehicle || !n.arrived || n.boarded || h >= n.leaveAt) return null;
     if (n.classB && !n.skipClass && h + n.jit * 0.3 < CLASS_END_H) return classZone(n.classB);   // in lectures till the 11 o'clock one ends
@@ -588,11 +603,19 @@ function updateNPC(n, dt) {
         n.spawnInZone = false; n.spawnAt = null; n.inClass = false;
         n.x = o.x; n.y = o.y; n.visible = true; n.wait = n.commuter ? n.r1 * 0.8 : n.r1 * 4;
       } else if (!onScreen(n)) { const p = npcSpot(n, zr); n.x = p.x; n.y = p.y; n.wait = Math.random() * 3; }
-      const p = npcSpot(n, zr); setNpcTarget(n, p.x, p.y); n.anchor = p; n.stops = 0;
+      const p = npcSpot(n, zr);
+      if (n.walkingDayScholar && !n.walkArrivalDone) {
+        n.walkRoute = 'enter-gate'; n.walkTarget = p;
+        setNpcTarget(n, GATE_EXIT.x, GATE_EXIT.y);
+      } else setNpcTarget(n, p.x, p.y);
+      n.anchor = p; n.stops = 0;
+    } else if (n.walkingDayScholar) {
+      n.walkRoute = 'leave-gate'; n.walkTarget = npcHome(n);
+      setNpcTarget(n, GATE_EXIT.x, GATE_EXIT.y); n.wait = 0;
     } else { const h = npcHome(n); setNpcTarget(n, h.x, h.y); n.wait = 0; }
   }
   if (!n.visible) return;
-  if (!n.zone && (!onScreen(n) || (!n.commuter && npcGone(n)))) { if (n.commuter) n.boarded = true; n.visible = false; return; }
+  if (!n.zone && ((!onScreen(n) && !n.walkingDayScholar) || (!n.commuter && npcGone(n)))) { if (n.commuter) n.boarded = true; n.visible = false; return; }
   if (n.bubbleT > 0) n.bubbleT -= dt;
   if (n.bubbleCD > 0) n.bubbleCD -= dt;
   if (n.freeze > 0) {
@@ -610,9 +633,19 @@ function updateNPC(n, dt) {
     return;
   }
   const d = Math.hypot(n.tx - n.x, n.ty - n.y);
-  if (d < 6 || (!n.zone && d < 26)) {
+  if (d < 12 && n.walkRoute === 'enter-gate') {
+    const target = n.walkTarget; n.walkRoute = null; n.walkTarget = null; n.walkArrivalDone = true;
+    if (target) { setNpcTarget(n, target.x, target.y); n.wait = 0; }
+    return;
+  }
+  if (d < 12 && n.walkRoute === 'leave-gate') {
+    const home = n.walkTarget; n.walkRoute = 'leave-home'; n.walkTarget = null;
+    if (home) { setNpcTarget(n, home.x, home.y); n.wait = 0; }
+    return;
+  }
+  if (d < 6 || (!n.zone && d < 26 && n.walkRoute !== 'leave-gate')) {
     n.moving = false;
-    if (!n.zone) { if (n.commuter) n.boarded = true; n.visible = false; return; }   // walked into the hostel / got into their vehicle
+    if (!n.zone) { if (n.commuter) n.boarded = true; n.walkRoute = null; n.visible = false; return; }   // walked into the hostel / got into their vehicle
     if (n.enter) {
       const e = n.enter; n.enter = null;
       if (n.zone === e.zone && S.min < e.until) {
