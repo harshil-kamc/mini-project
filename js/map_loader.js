@@ -6,8 +6,9 @@ const MAP_KEY = 'mvsr_custom_map_v2';
 // Layout version 4 = the campus seen from the main gate: turned 90° anticlockwise from a north-up map
 // (real-life west at the bottom, north on the left). Maps saved north-up (no version, or version 3) are turned
 // automatically when loaded, keeping every building's wall direction, roof and entrance pointing the same real way.
-// Version 5 adds the second parking lot, version 6 adds editable assets, and version 7 adds the gate road and footpath.
-const LAYOUT_VERSION = 7;
+// Version 5 adds the second parking lot, version 6 adds editable assets, version 7 adds the gate road and footpath,
+// version 8 widens gate access, and version 9 adds turning clearance at the highway and parking approach.
+const LAYOUT_VERSION = 9;
 // Items placed in the editor (null = use automatic placement for the original decorations).
 const MAP_EXTRAS = { lamps: null, trees: null, benches: null, bins: null, rocks: null, mapImages: null, backGate: null };
 const snapshotMap = () => JSON.parse(JSON.stringify({
@@ -66,9 +67,41 @@ function addGateRoadAccess(m) {
     .sort((a, b) => Math.abs(a.y - gate.y) - Math.abs(b.y - gate.y))[0];
   if (!highway || Math.abs(highway.y - gate.y) > 80 || highway.y < 110) { m.layoutVersion = LAYOUT_VERSION; return m; }
 
-  const access = { x: Math.round(gate.x - 110), y: highway.y - 110, w: 220, h: 110 };
-  const hasAccess = m.roads.some(r => r.x <= access.x && r.y <= access.y && r.x + r.w >= access.x + access.w && r.y + r.h >= access.y + access.h);
-  if (!hasAccess) m.roads.push(access);
+  // The turning arc needs pavement beyond the connector itself, including where
+  // the car's rear swings out as it joins the campus road.
+  const vertical = m.roads.filter(r => r.h > r.w && r.h >= 500)
+    .sort((a, b) => Math.abs((a.x + a.w / 2) - gate.x) - Math.abs((b.x + b.w / 2) - gate.x))[0];
+  let access = { x: Math.round(gate.x - 180), y: highway.y - 270, w: 440, h: 270 };
+  if (vertical) {
+    access.x = Math.min(access.x, Math.round(vertical.x + vertical.w / 2 - 220));
+    access.w = Math.max(access.w, 440);
+
+    // Close the small geometry gap where the approach road meets the cross
+    // street, and leave enough edge margin for a vehicle turning through it.
+    const crossing = m.roads.filter(r => r !== vertical && r.w >= r.h &&
+      r.x <= vertical.x + vertical.w / 2 && r.x + r.w >= vertical.x + vertical.w / 2 &&
+      r.y + r.h <= vertical.y && vertical.y - (r.y + r.h) <= 30)
+      .sort((a, b) => vertical.y - (a.y + a.h) - (vertical.y - (b.y + b.h)))[0];
+    if (crossing) {
+      const bottom = vertical.y + vertical.h, top = Math.max(0, crossing.y + crossing.h - 10);
+      vertical.x -= 10; vertical.w += 10;
+      vertical.y = top; vertical.h = bottom - top;
+      crossing.y -= 10; crossing.h += 10;
+    }
+  }
+  const lot = m.areas && m.areas.parking;
+  if (lot) {
+    const right = lot.x + lot.w, bottom = lot.y + lot.h;
+    lot.x = Math.max(0, lot.x - 30); lot.y = Math.max(0, lot.y - 30);
+    lot.w = Math.min(m.world.w - lot.x, right - lot.x + 50);
+    lot.h = Math.min(m.world.h - lot.y, bottom - lot.y);
+  }
+  const oldAccess = m.roads.filter(r => r.w <= 500 && r.h <= 220 &&
+    r.x <= access.x + access.w && r.x + r.w >= access.x &&
+    r.y <= access.y + access.h && r.y + r.h >= access.y);
+  const merged = oldAccess.filter(r => r !== highway);
+  for (const r of merged) m.roads.splice(m.roads.indexOf(r), 1);
+  m.roads.push(access);
 
   m.medians = (m.medians || []).flatMap(median => {
     const ix0 = Math.max(median.x, access.x), ix1 = Math.min(median.x + median.w, access.x + access.w);
@@ -95,7 +128,7 @@ const upgradeMap = (m) => {
   if (!m || !Array.isArray(m.buildings) || !m.world) return m;
   if (m.layoutVersion >= LAYOUT_VERSION) return m;
   if ([2, 4, 5].includes(m.layoutVersion)) return addGateRoadAccess(addLibraryParking(m)); // already in the gate view
-  if (m.layoutVersion === 6) return addGateRoadAccess(m);
+  if ([6, 7, 8].includes(m.layoutVersion)) return addGateRoadAccess(m);
   return addGateRoadAccess(addLibraryParking(rotateMap(m))); // north-up (no version / version 3)
 };
 

@@ -420,9 +420,18 @@ function segmentHitsMedian(ax, ay, bx, by, pad = 0) {
 function findMainHighway() {
   const gate = TRAFFIC.gates && TRAFFIC.gates.main;
   if (!gate || !gate.freePosition || !gate.horiz || gate.side !== 'S') return null;
-  const road = ROADS.filter(r => r.w >= r.h && gate.outside.x >= r.x && gate.outside.x <= r.x + r.w)
-    .sort((a, b) => Math.abs(a.y - gate.outside.y) - Math.abs(b.y - gate.outside.y))[0];
-  if (!road || gate.outside.y < road.y || gate.outside.y > road.y + road.h) return null;
+  // Prefer the real, map-wide horizontal road at the gate.  A newly-added narrow
+  // gate-access strip is a connector, not a highway: it must not become the route
+  // for through traffic, because that sends vehicles off-road at both world edges.
+  const roads = ROADS.filter(r => r.w >= r.h && gate.outside.x >= r.x && gate.outside.x <= r.x + r.w);
+  if (!roads.length) return null;
+  const road = roads.sort((a, b) =>
+    (b.w * b.h) - (a.w * a.h) ||
+    Math.abs(a.y - gate.outside.y) - Math.abs(b.y - gate.outside.y)
+  )[0];
+  const verticalGap = gate.outside.y < road.y ? road.y - gate.outside.y
+    : gate.outside.y > road.y + road.h ? gate.outside.y - (road.y + road.h) : 0;
+  if (verticalGap > 220) return null;
   return { gate, road, y: road.y + road.h / 2, offset: Math.min(42, Math.max(18, road.h * 0.18)) };
 }
 const highwayLaneY = (direction) => TRAFFIC.highway.y - direction * TRAFFIC.highway.offset;
@@ -976,6 +985,23 @@ function vehicleRect(v) {
   const ca = Math.abs(Math.cos(v.ang)), sa = Math.abs(Math.sin(v.ang)), w = v.L * ca + v.W * sa, h = v.L * sa + v.W * ca;
   return { x: v.x - w / 2, y: v.y - h / 2, w, h };
 }
+function pointOnPavedVehicleSurface(px, py) {
+  if (ROADS.some(r => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)) return true;
+  if (typeof parkingAreas === 'function') return parkingAreas().some(p => px >= p.x && px <= p.x + p.w && py >= p.y && py <= p.y + p.h);
+  return false;
+}
+function vehicleOnPavedSurface(v, x, y, ang) {
+  // Check the oriented footprint itself, not just its centre.  Parking lots are
+  // the sole allowed exception to the ROAD requirement.
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let iy = -3; iy <= 3; iy++) for (let ix = -3; ix <= 3; ix++) {
+    const px = x + ca * (ix * v.L / 6) - sa * (iy * v.W / 6);
+    const py = y + sa * (ix * v.L / 6) + ca * (iy * v.W / 6);
+    if (px < 0 || px > WORLD_W || py < 0 || py > WORLD_H) continue;
+    if (!pointOnPavedVehicleSurface(px, py)) return false;
+  }
+  return true;
+}
 // Every vehicle on the campus is solid for the player and people walking — parked or moving.
 // (fx, fy) = where the walker is now: someone already touching a vehicle may always step away from it.
 function vehicleBlocks(x, y, fx, fy) {
@@ -992,6 +1018,7 @@ function vehicleBlocks(x, y, fx, fy) {
 // Would the vehicle at pose (x, y, ang) touch anything it isn't already touching? Returns the blocker.
 // This is the hard rule: a give-way only relaxes the cautious look-ahead, never this.
 function poseBlocked(v, x, y, ang, people) {
+  if (!vehicleOnPavedSurface(v, x, y, ang)) return { offroad: true };
   for (const m of MEDIANS) {
     if (obbOverlap(x, y, ang, v.L / 2, v.W / 2, m.x + m.w / 2, m.y + m.h / 2, 0, m.w / 2, m.h / 2)) return { median: m };
   }
