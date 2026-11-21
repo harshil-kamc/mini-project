@@ -6,9 +6,9 @@ const MAP_KEY = 'mvsr_custom_map_v2';
 // Layout version 4 = the campus seen from the main gate: turned 90° anticlockwise from a north-up map
 // (real-life west at the bottom, north on the left). Maps saved north-up (no version, or version 3) are turned
 // automatically when loaded, keeping every building's wall direction, roof and entrance pointing the same real way.
-// Version 5 adds the second parking lot, version 6 adds editable assets, version 7 adds the gate road and footpath,
-// version 8 widens gate access, and version 9 adds turning clearance at the highway and parking approach.
-const LAYOUT_VERSION = 9;
+// Version 5 adds the second parking lot, version 6 adds editable assets, version 7 adds gate access,
+// versions 8-9 improve vehicle clearance, and version 10 removes the gate-side footpath.
+const LAYOUT_VERSION = 10;
 // Items placed in the editor (null = use automatic placement for the original decorations).
 const MAP_EXTRAS = { lamps: null, trees: null, benches: null, bins: null, rocks: null, mapImages: null, backGate: null };
 const snapshotMap = () => JSON.parse(JSON.stringify({
@@ -58,6 +58,19 @@ function addLibraryParking(m) {
     m.areas.parking2 = target;
   }
   m.layoutVersion = LAYOUT_VERSION;
+  return m;
+}
+function removeGateFootpath(m) {
+  const gate = m.gate;
+  if (!gate || gate.free !== true || gate.side !== 'S' || !Array.isArray(m.paths)) return m;
+  const highway = (m.roads || []).filter(r => r.w >= r.h && gate.x >= r.x && gate.x <= r.x + r.w)
+    .sort((a, b) => Math.abs(a.y - gate.y) - Math.abs(b.y - gate.y))[0];
+  if (!highway) return m;
+  m.paths = m.paths.filter(p => {
+    const crossesGate = p.x <= gate.x && p.x + p.w >= gate.x;
+    const nearRoadside = Math.abs((p.y + p.h / 2) - (highway.y - 11)) < 35;
+    return !(crossesGate && p.w > p.h * 10 && nearRoadside);
+  });
   return m;
 }
 function addGateRoadAccess(m) {
@@ -116,17 +129,14 @@ function addGateRoadAccess(m) {
     return pieces;
   });
 
-  m.paths = m.paths || [];
-  const sideX = Math.max(30, highway.x + 30);
-  const sidewalk = { x: sideX, y: highway.y - 20, w: Math.min(m.world.w - 30, highway.x + highway.w - 30) - sideX, h: 18 };
-  const hasSidewalk = m.paths.some(p => p.x <= gate.x && p.x + p.w >= gate.x && p.y <= highway.y - 10 && p.y + p.h >= highway.y - 10);
-  if (!hasSidewalk && sidewalk.w > 0) m.paths.push(sidewalk);
+  removeGateFootpath(m);
   m.layoutVersion = LAYOUT_VERSION;
   return m;
 }
 const upgradeMap = (m) => {
   if (!m || !Array.isArray(m.buildings) || !m.world) return m;
   if (m.layoutVersion >= LAYOUT_VERSION) return m;
+  if (m.layoutVersion === 9) { removeGateFootpath(m); m.layoutVersion = LAYOUT_VERSION; return m; }
   if ([2, 4, 5].includes(m.layoutVersion)) return addGateRoadAccess(addLibraryParking(m)); // already in the gate view
   if ([6, 7, 8].includes(m.layoutVersion)) return addGateRoadAccess(m);
   return addGateRoadAccess(addLibraryParking(rotateMap(m))); // north-up (no version / version 3)
