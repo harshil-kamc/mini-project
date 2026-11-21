@@ -9,5 +9,4 @@ package-lock.json
 # Backups and unused files
 js/custom_map.backup.js
 js/*.tmp
-assets/gate_main.png
 _ui_backup/
