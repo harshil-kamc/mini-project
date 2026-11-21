@@ -1,10 +1,7 @@
 'use strict';
 // ─────────────────────────────────────────────────────────────
-//  MVSR main gate, drawn in code in the game's comic style.
-//  Replica of the real entrance: two big pillars with sloped caps, the
-//  "M.V.S.R. ENGINEERING COLLEGE" beam, a centre pillar, two grille gates,
-//  the Matrusri Education Society sign with a hedge, and curved side walls.
-//  Shared by the game (art.js) and the Map Editor.
+//  The main front gate uses its supplied image. Side and back gates remain
+//  canvas-drawn. Shared by the game (art.js) and the Map Editor.
 // ─────────────────────────────────────────────────────────────
 const GATE_PAL = {
   ink: '#1b1b1b', dark: '#4f5560', darkHi: '#666c78', darkLo: '#3c4049', cap: '#ece8e0', capLo: '#c9c4ba',
@@ -14,90 +11,16 @@ const GATE_PAL = {
 
 const GATE_MAIN_IMAGE = new Image();
 GATE_MAIN_IMAGE.onload = () => { if (typeof draw === 'function') draw(); };
+GATE_MAIN_IMAGE.onerror = () => console.error('Could not load the main gate image: assets/gate_main.png');
 GATE_MAIN_IMAGE.src = 'assets/gate_main.png';
 
-// Front view. Drawn in a 443 × 150 design box (ground line at y = 150), centred on cx with its base on baseY.
+// Draw the supplied front-gate image centred on cx with its base on baseY.
 function drawGateFront(g, cx, baseY, width = 400, alpha = 1) {
-  if (GATE_MAIN_IMAGE.complete && GATE_MAIN_IMAGE.naturalWidth) {
-    const height = width * GATE_MAIN_IMAGE.naturalHeight / GATE_MAIN_IMAGE.naturalWidth;
-    g.save();
-    g.globalAlpha *= alpha;
-    g.drawImage(GATE_MAIN_IMAGE, cx - width / 2, baseY - height, width, height);
-    g.restore();
-    return;
-  }
-
-  const s = width / 443, P = GATE_PAL;
+  if (!GATE_MAIN_IMAGE.complete || !GATE_MAIN_IMAGE.naturalWidth) return;
+  const height = width * GATE_MAIN_IMAGE.naturalHeight / GATE_MAIN_IMAGE.naturalWidth;
   g.save();
   g.globalAlpha *= alpha;
-  g.translate(cx - 221.5 * s, baseY - 150 * s); g.scale(s, s);
-  g.lineJoin = 'round'; g.lineWidth = 2.2; g.strokeStyle = P.ink;
-  const box = (x, y, w, h, fill) => { g.fillStyle = fill; g.fillRect(x, y, w, h); g.strokeRect(x, y, w, h); };
-  const blob = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.stroke(); };
-
-  // shadow on the ground, so it sits in the world instead of floating
-  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath();
-  g.moveTo(4, 150); g.lineTo(439, 150); g.lineTo(452, 160); g.lineTo(16, 160); g.closePath(); g.fill();
-
-  // trees growing behind the side walls
-  for (const [x, y, r, i] of [[10, 78, 24, 0], [30, 96, 18, 1], [8, 108, 16, 2], [433, 78, 24, 0], [413, 96, 18, 1], [435, 108, 16, 2]]) blob(x, y, r, P.tree[i]);
-
-  // low curved side walls that join the boundary wall
-  g.fillStyle = P.cap;
-  g.beginPath(); g.moveTo(-6, 150); g.lineTo(-6, 112); g.quadraticCurveTo(12, 108, 24, 122); g.lineTo(24, 150); g.closePath(); g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(449, 150); g.lineTo(449, 112); g.quadraticCurveTo(431, 108, 419, 122); g.lineTo(419, 150); g.closePath(); g.fill(); g.stroke();
-
-  // grille gates (behind the centre sign), arched tops, vertical bars
-  const gate = (x0, x1, flip) => {
-    const mid = (x0 + x1) / 2;
-    g.fillStyle = P.grille;
-    g.beginPath(); g.moveTo(x0, 148); g.lineTo(x0, flip ? 104 : 98); g.quadraticCurveTo(mid, 86, x1, flip ? 98 : 104); g.lineTo(x1, 148); g.closePath(); g.fill(); g.stroke();
-    g.save(); g.clip();
-    g.strokeStyle = P.bar; g.lineWidth = 1.3;
-    for (let x = x0 + 5; x < x1; x += 6) { g.beginPath(); g.moveTo(x, 86); g.lineTo(x, 148); g.stroke(); }
-    g.lineWidth = 2; for (const y of [110, 128, 142]) { g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); }
-    g.restore();
-  };
-  gate(70, 206, false); gate(238, 373, true);
-
-  // big pillars with lit and shaded edges and a plinth
-  const pillar = (x) => {
-    box(x, 30, 46, 120, P.dark);
-    g.fillStyle = P.darkHi; g.fillRect(x + 1, 31, 7, 118);
-    g.fillStyle = P.darkLo; g.fillRect(x + 38, 31, 7, 118);
-    box(x - 4, 138, 54, 12, P.darkLo);
-  };
-  pillar(22); pillar(375);
-
-  // centre pillar under the beam
-  box(204, 56, 35, 50, P.dark); g.fillStyle = P.darkHi; g.fillRect(205, 57, 5, 48);
-
-  // top slab and sloped white caps over the pillars
-  box(24, 24, 395, 9, P.cap);
-  g.fillStyle = P.cap;
-  g.beginPath(); g.moveTo(8, 32); g.lineTo(80, 32); g.lineTo(80, 24); g.lineTo(8, 12); g.closePath(); g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(363, 32); g.lineTo(435, 32); g.lineTo(435, 12); g.lineTo(363, 24); g.closePath(); g.fill(); g.stroke();
-  g.fillStyle = P.capLo; g.fillRect(9, 28, 70, 3); g.fillRect(364, 28, 70, 3);
-
-  // the name beam
-  box(30, 33, 383, 24, P.beam);
-  g.strokeStyle = P.beamHi; g.lineWidth = 1.2; g.strokeRect(34, 36, 375, 18);
-  g.fillStyle = P.text; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = 'bold 15px Georgia, "Times New Roman", serif';
-  if ('letterSpacing' in g) g.letterSpacing = '2.5px';
-  g.fillText('M.V.S.R. ENGINEERING COLLEGE', 222, 46);
-  if ('letterSpacing' in g) g.letterSpacing = '0px';
-
-  // Matrusri sign on its stone base, hedge in front
-  g.strokeStyle = P.ink; g.lineWidth = 2.2;
-  box(150, 126, 143, 22, P.stone);
-  box(156, 101, 131, 26, P.sign);
-  g.strokeStyle = P.cap; g.lineWidth = 1; g.strokeRect(159, 104, 125, 20);
-  g.fillStyle = P.text; g.font = 'bold 8.5px "Comic Neue", "Trebuchet MS", sans-serif';
-  g.fillText('MATRUSRI EDUCATION SOCIETY', 222, 114.5);
-  g.strokeStyle = P.ink; g.lineWidth = 2;
-  for (let i = 0; i < 12; i++) blob(154 + i * 12.3, 143 + (i % 2) * 2, 8 + (i % 3), P.hedge[i % 3]);
-  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.drawImage(GATE_MAIN_IMAGE, cx - width / 2, baseY - height, width, height);
   g.restore();
 }
 
@@ -181,4 +104,3 @@ function drawGateArt(g, gi, alpha = 1) {
   else if (gi.side === 'S') drawGateFront(g, gi.at, gi.y - 6, gi.width || 400, alpha);
   else drawGateSide(g, gi, alpha);
 }
-
